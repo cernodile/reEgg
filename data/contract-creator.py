@@ -4,16 +4,6 @@ import sys
 sys.path.append("..")
 import ei_pb2 as EIProto
 
-#                        [
-#                                {"deliver": 250000000000000000, "reward_type": "SOUL_EGGS", "reward_amt": 250000},
-#                                {"deliver": 500000000000000000, "reward_type": "EGGS_OF_PROPHECY", "reward_amt": 1}
-#                        ],
-#                        [
-#                                {"deliver": 50000000000000, "reward_type": "SOUL_EGGS", "reward_amt": 10000},
-#                                {"deliver": 1000000000000000, "reward_type": "EGGS_OF_PROPHECY", "reward_amt": 1}
-#                        ]
-#                ]
-#        }
 boost_defs = {
 "Supreme tachyon prism": "tachyon_prism_orange_big",
 "Legendary tachyon prism (1000x 10m)": "tachyon_prism_orange",
@@ -45,6 +35,38 @@ def ask_for_float(preprint):
 			return val
 		except:
 			continue
+
+def parse_time(preprint):
+	while True:
+		print(preprint, end="")
+		x = input()
+		vals = x.split(" ")
+		if len(vals) == 1:
+			try:
+				val = int(x)
+				return val
+			except:
+				continue
+		else:
+			if len(vals) % 2 == 1:
+				print("Write in following format: x d x h x m - or plain amount in minutes.")
+			fail = False
+			total = 0
+			for i in range(0, len(vals), 2):
+				try:
+					intval = int(vals[i])
+					suffix = vals[i + 1]
+					if suffix.upper() == "D":
+						intval *= 1440
+					elif suffix.upper() == "H":
+						intval *= 60
+					total += intval
+				except:
+					fail = True
+					break
+			if fail:
+				continue
+			return total
 
 def ask_for_quantity(preprint):
 	while True:
@@ -137,6 +159,8 @@ def create_goalset(type):
 		goal["reward_type"] = parse_reward_type("Enter reward type - type '?' for reference: ")
 		if goal["reward_type"] == "BOOST":
 			goal["reward_str"] = parse_boost_type("Type in boost type - type '?' for reference: ")
+		elif goal["reward_type"] == "EPIC_RESEARCH_ITEM":
+			goal["reward_str"] = ask_for_string("Type in epic research (check your backup for reference): ")
 		goal["reward_amt"] = ask_for_float("How many rewarded? ")
 		goals.append(goal)
 	return goals
@@ -144,7 +168,7 @@ def create_goalset(type):
 obj["id"] = ask_for_string("Enter contract ID: ")
 obj["name"] = ask_for_string("Enter contract name: ")
 obj["description"] = ask_for_string("Enter contract description: ")
-obj["duration"] = ask_for_float("How many minutes does the contract last: ") * 60.0
+obj["duration"] = parse_time("How many minutes does the contract last: ") * 60.0
 obj["token_interval"] = ask_for_float("How many minutes to wait per reward token: ")
 obj["egg"] = parse_egg_type("Enter egg type - type '?' if need reference: ")
 obj["goalsets"].append(create_goalset("Elite"))

@@ -110,6 +110,220 @@
           }
         ]
       ]
+    },
+    {
+      "id": "space-eggs",
+      "name": "LEGGACY: SpaceEggs",
+      "description": "Spaceflight is booming due to re-usable rockets.\nHelp fill the demand with this contract.",
+      "duration": 604800.0,
+      "token_interval": 120.0,
+      "egg": "ROCKET_FUEL",
+      "goalsets": [
+        [
+          {
+            "deliver": 30000000000000000,
+            "reward_type": "PIGGY_LEVEL_BUMP",
+            "reward_str": "",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 500000000000000000,
+            "reward_type": "GOLD",
+            "reward_str": "",
+            "reward_amt": 50000.0
+          }
+        ],
+        [
+          {
+            "deliver": 25000000000000,
+            "reward_type": "PIGGY_LEVEL_BUMP",
+            "reward_str": "",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 1000000000000000,
+            "reward_type": "GOLD",
+            "reward_str": "",
+            "reward_amt": 5000.0
+          }
+        ]
+      ]
+    },
+    {
+      "id": "anxiety-attack",
+      "name": "LEGGACY: Anxiety Attack",
+      "description": "A new school year and political turmoil have everyone stressed out! A regimen of medical eggs are needed.",
+      "duration": 259200.0,
+      "token_interval": 90.0,
+      "egg": "MEDICAL",
+      "goalsets": [
+        [
+          {
+            "deliver": 25000000000000000,
+            "reward_type": "PIGGY_LEVEL_BUMP",
+            "reward_str": "",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 75000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 10000000000000,
+            "reward_type": "PIGGY_LEVEL_BUMP",
+            "reward_str": "",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 500000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
+    },
+    {
+      "id": "terraform-heavy",
+      "name": "LEGGACY: New Civilization",
+      "description": "A group of explorers are setting out to find new worlds, new civilizations.\\nThey are in need of fuel!",
+      "duration": 399960.0,
+      "token_interval": 30.0,
+      "egg": "ANTIMATTER",
+      "goalsets": [
+        [
+          {
+            "deliver": 50000000000000000,
+            "reward_type": "PIGGY_MULTIPLIER",
+            "reward_str": "",
+            "reward_amt": 2.0
+          },
+          {
+            "deliver": 150000000000000000,
+            "reward_type": "EPIC_RESEARCH_ITEM",
+            "reward_str": "comfy_nests",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 300000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 100000000000000,
+            "reward_type": "PIGGY_MULTIPLIER",
+            "reward_str": "",
+            "reward_amt": 2.0
+          },
+          {
+            "deliver": 750000000000000,
+            "reward_type": "EPIC_RESEARCH_ITEM",
+            "reward_str": "comfy_nests",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 1500000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
+    },
+    {
+      "id": "tool-time",
+      "name": "LEGGACY: Tool Time!",
+      "description": "It's father's day around the galaxy and power tools are flying off the shelves.\\nHelp restock!",
+      "duration": 345600.0,
+      "token_interval": 120.0,
+      "egg": "SUPER_MATERIAL",
+      "goalsets": [
+        [
+          {
+            "deliver": 50000000000000000,
+            "reward_type": "BOOST",
+            "reward_str": "soul_beacon_orange",
+            "reward_amt": 1.0
+          },
+          {
+            "deliver": 400000000000000000,
+            "reward_type": "PIGGY_FILL",
+            "reward_str": "",
+            "reward_amt": 200000.0
+          },
+          {
+            "deliver": 1000000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 50000000000000,
+            "reward_type": "SOUL_EGGS",
+            "reward_str": "",
+            "reward_amt": 1000.0
+          },
+          {
+            "deliver": 500000000000000,
+            "reward_type": "PIGGY_FILL",
+            "reward_str": "",
+            "reward_amt": 25000.0
+          },
+          {
+            "deliver": 4000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
+    },
+    {
+      "id": "fday-ouch",
+      "name": "LEGGACY: Ouch!",
+      "description": "With all those new power tools out there, there are lots of minor injuries.\\nFirst Aid!",
+      "duration": 259200.0,
+      "token_interval": 60.0,
+      "egg": "MEDICAL",
+      "goalsets": [
+        [
+          {
+            "deliver": 20000000000000000,
+            "reward_type": "BOOST",
+            "reward_str": "tachyon_prism_orange",
+            "reward_amt": 2.0
+          },
+          {
+            "deliver": 80000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 10000000000000,
+            "reward_type": "GOLD",
+            "reward_str": "",
+            "reward_amt": 1500.0
+          },
+          {
+            "deliver": 400000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
     }
   ],
   "normal": []
