@@ -1,0 +1,116 @@
+{
+  "epoch": 1714867200,
+  "legacy": [
+    {
+      "id": "laurel-v-yanny",
+      "name": "LEGGACY: Laurel vs Yanny",
+      "description": "A Quantum rift is causing people to hear different words in a viral video. Scientists have a fix but they need your help.",
+      "duration": 345600.0,
+      "token_interval": 60.0,
+      "egg": "QUANTUM",
+      "goalsets": [
+        [
+          {
+            "deliver": 250000000000000000,
+            "reward_type": "SOUL_EGGS",
+            "reward_amt": 250000
+          },
+          {
+            "deliver": 500000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_amt": 1
+          }
+        ],
+        [
+          {
+            "deliver": 50000000000000,
+            "reward_type": "SOUL_EGGS",
+            "reward_amt": 10000
+          },
+          {
+            "deliver": 1000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_amt": 1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "build-a-house",
+      "name": "LEGGACY: Home Renovations",
+      "description": "You've decided to build a new house! Why not make it yourself? You'll need a lot of eggs so get started!",
+      "duration": 864000.0,
+      "token_interval": 60.0,
+      "egg": "SUPER_MATERIAL",
+      "goalsets": [
+        [
+          {
+            "deliver": 5000000000000000,
+            "reward_type": "GOLD",
+            "reward_str": "",
+            "reward_amt": 10000.0
+          },
+          {
+            "deliver": 25000000000000000,
+            "reward_type": "BOOST",
+            "reward_str": "tachyon_prism_orange_big",
+            "reward_amt": 2.0
+          },
+          {
+            "deliver": 100000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 50000000000000,
+            "reward_type": "GOLD",
+            "reward_str": "",
+            "reward_amt": 2500.0
+          },
+          {
+            "deliver": 250000000000000,
+            "reward_type": "PIGGY_MULTIPLIER",
+            "reward_str": "",
+            "reward_amt": 2.0
+          },
+          {
+            "deliver": 3000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
+    },
+    {
+      "id": "all-or-nothing",
+      "name": "LEGGACY: All or Nothing",
+      "description": "A mysterious investor is looking for a lot of edible eggs.\nBut he wants the full amount or nothing.",
+      "duration": 799980.0,
+      "token_interval": 60.0,
+      "egg": "EDIBLE",
+      "goalsets": [
+        [
+          {
+            "deliver": 250000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ],
+        [
+          {
+            "deliver": 10000000000000000,
+            "reward_type": "EGGS_OF_PROPHECY",
+            "reward_str": "",
+            "reward_amt": 1.0
+          }
+        ]
+      ]
+    }
+  ],
+  "normal": []
+}
