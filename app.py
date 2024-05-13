@@ -12,11 +12,13 @@ from flask import request
 
 import contracts
 import events
+import db_store
 
 upgrade_cache = {}
 
 app = Flask(__name__)
 contracts.load_contracts()
+db_store.create_backups_db()
 
 @app.route('/ei/<path:subpath>', methods=['POST'])
 def ei_routes(subpath):
@@ -28,7 +30,25 @@ def ei_routes(subpath):
 		ContactReq = EIProto.EggIncFirstContactRequest()
 		ContactReq.ParseFromString(data)
 		ContactResp = EIProto.EggIncFirstContactResponse()
-		if ContactReq.user_id in upgrade_cache:
+		Backups = db_store.get_backups(ContactReq.user_id)
+		if len(Backups) > 0:
+			# Lets process backups - check for any forced ones first
+			for backup in Backups:
+				if backup[2] == True:
+					# Force backup found - lets serialize the payload
+					SaveBackup = EIProto.Backup()
+					try:
+						SaveBackup.ParseFromString(base64.b64decode(backup[3]))
+						SaveBackup.force_backup = True
+						SaveBackup.force_offer_backup = True
+						ContactResp.backup.CopyFrom(SaveBackup)
+						db_store.update_backup(backup[0], backup[3], False)
+						break
+					except:
+						print("Failed to force serve backup - perhaps some logic error?")
+						break
+			# TODO: Check for soul eggs/eggs of prophecy and determine algorithm for "is it worth offering?"
+		elif ContactReq.user_id in upgrade_cache:
 			print("Found an unupgraded save - lets upgrade the permit level to Pro")
 			ContactResp.backup.CopyFrom(cache[ContactReq.user_id])
 			del upgrade_cache[ContactReq.user_id]
@@ -41,6 +61,9 @@ def ei_routes(subpath):
 			SaveBackup.force_backup = True
 			SaveBackup.force_offer_backup = True
 			upgrade_cache[SaveBackup.user_id] = SaveBackup
+		else:
+			# start storing backups after permit upgrades
+			db_store.add_backup(SaveBackup.user_id, request.form["data"].replace(" ", "+"))
 	elif subpath == "get_periodicals":
 		PeriodicalResp = EIProto.PeriodicalsResponse()
 		for evt in events.get_active_events():
