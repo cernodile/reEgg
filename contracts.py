@@ -56,6 +56,7 @@ def __convert_contract_to_proto(obj):
 def load_contracts():
 	with open("data/contracts.json", "r") as file:
 		obj = json.loads(file.read())
+		global contract_epoch
 		contract_epoch = obj["epoch"]
 		time_since_epoch = time.time() - contract_epoch
 		i = 0

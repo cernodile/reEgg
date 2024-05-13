@@ -77,13 +77,13 @@ def get_active_events():
 		iso_calendar = date.isocalendar()
 		seed = int(str(iso_calendar.year) + str(iso_calendar.week))
 		srng = random.Random(seed)
-		# 50/50 chance of it being either
+		# 50/50 chance of it being either (reality is something more like 30/70 ratio, but it's our server so.. \o/)
 		if srng.random() < 0.5:
 			res.append(double_prestige_event)
 		else:
 			res.append(triple_prestige_event)
 	if type(event_calendar[cur_day]) is list:
-		res = event_calendar[cur_day]
+		res = res + event_calendar[cur_day]
 	else:
 		res.append(event_calendar[cur_day])
 	# Apply duration deltas
