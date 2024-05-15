@@ -9,13 +9,7 @@ The project's scope is to educate people on how to reverse engineer APIs in orde
 As API servers shut down, many apps are immediately locked out from being useable or get heavily hindered in capabilities to do anything productive.
 
 ## Setup
-Get any webserver that supports reverse proxying. Point it to proxy http://127.0.0.1:5000/. Create self-signed CA and certificate for www.auxbrain.com and configure your chosen webserver to use it.
-Once that is set up, install "protobuf" and "flask" with pip and run `flask run` on the command line.
-
-You will need a VPN app on your phone that can overwrite DNS records (such as AdAway) and root to perform SSL unpinning (Xposed Framework has modules for that).
-You can also perform this without root by repacking the app with a modified manifest.
-
-Once you've setup redirection, install the self-signed CA to Android's CA store.
+You will need a VPN app on your phone that can overwrite DNS records (such as AdAway), redirect www.auxbrain.com to the server that's hosting the emulator.
 
 ## Configuration
 You might want to check out `data/` directory and check for any epoch values. I am using 05/05/2024 as the default epoch for scheduling contracts for example.
