@@ -3,6 +3,7 @@
 # Read the blog post at https://based.quest/reverse-engineering-a-mobile-app-protobuf-api/
 ############
 import base64
+import datetime
 import time
 
 import ei_pb2 as EIProto
@@ -24,7 +25,11 @@ db_store.create_backups_db()
 def ei_routes(subpath):
 	print("REQ: /ei/" + subpath)
 	if subpath == "daily_gift_info":
-		print(request.form)
+		DateInfo = (datetime.datetime.now() - datetime.datetime(1970, 1, 1))
+		GiftResponse = EIProto.DailyGiftInfo()
+		GiftResponse.current_day = DateInfo.days
+		GiftResponse.seconds_to_next_day = 86400 - DateInfo.seconds
+		return base64.b64encode(GiftResponse.SerializeToString())
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	if subpath == "first_contact":
 		ContactReq = EIProto.EggIncFirstContactRequest()
@@ -56,6 +61,7 @@ def ei_routes(subpath):
 	elif subpath == "save_backup":
 		SaveBackup = EIProto.Backup()
 		SaveBackup.ParseFromString(bytes(data))
+		#print(SaveBackup)
 		if SaveBackup.game.permit_level == 0:
 			SaveBackup.game.permit_level = 1
 			SaveBackup.force_backup = True
@@ -88,3 +94,38 @@ def ei_data_rotues(subpath):
 	else:
 		print(request.form)
 	return ""
+
+# TODO: ratelimit this
+@app.route('/ei_ps/<userid>/<method>', methods=['POST'])
+def ei_ps_routes(userid, method):
+	if True:
+		return "Unimplemented.", 403
+	# Valid userid?
+	if len(userid) != 16:
+		return "Invalid device ID format", 403
+	# Do we have any backups tied to this user?
+	Backups = db_store.get_backups(userid)
+	if len(Backups) == 0:
+		return "No such user found", 404
+	SaveBackup = EIProto.Backup()
+	SaveBackup.ParseFromString(base64.b64decode(Backups[-1][3]))
+	if method == "break_piggy":
+		if not SaveBackup.stats.piggy_full:
+			return "Piggy Bank not full.", 403
+		if time.time() - SaveBackup.stats.time_piggy_filled_realtime >= 604800:
+			SaveBackup.stats.piggy_full = False
+			SaveBackup.stats.piggy_found_full = False
+			SaveBackup.stats.num_piggy_breaks += 1
+			SaveBackup.stats.time_piggy_filled_realtime = 0.0
+			SaveBackup.stats.time_piggy_full_gametime = 0.0
+			SaveBackup.game.golden_eggs_earned += SaveBackup.game.piggy_bank
+			# TODO: Recalc checksum - for now we know golden eggs earned trigger it
+			SaveBackup.checksum += SaveBackup.game.piggy_bank
+			# BEFORE ENABLING - Piggy bank doesn't reset, need to find a way to trigger that.
+			SaveBackup.game.piggy_bank = 1
+			SaveBackup.game.piggy_full_alert_shown = False
+			db_store.update_backup(Backups[-1][0], base64.b64encode(SaveBackup.SerializeToString()), True)
+			return "Broke the piggy bank - accept the backup offer when restarting your game.", 200
+		else:
+			return "You need to have waited at least a week since filling the piggy bank before breaking it.", 403
+	return "Unknown method", 404

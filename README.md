@@ -25,7 +25,11 @@ You might want to check out `data/` directory and check for any epoch values. I 
   - [ ] Offer a valid backup
   - [x] Respond with valid payload
   - [x] Unlock Pro Permit
-- [ ] Gift Calendar
+- [x] Gift Calendar
+- [ ] Private Server API
+  - [ ] Break Piggy Bank week after filling
+  - [ ] Rename a device ID to a friendly name via API
+  - [ ] Self-service dashboard & GUI
 - [ ] Periodicals
   - [ ] Contracts
     - [x] Your First Contract
