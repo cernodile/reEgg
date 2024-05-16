@@ -32,6 +32,14 @@ def get_backup(ref_id):
 	else:
 		return tuple[0]
 
+def cleanup_backups(numids):
+	con = get_connection("backups")
+	cur = con.cursor()
+	cur.execute("DELETE FROM Backups WHERE BackupID IN(" + (", ".join(map(str, numids))) + ")")
+	con.commit()
+	con.close()
+	return
+
 def get_backups(device_id):
 	if not device_id.isalnum():
 		return []
@@ -39,17 +47,32 @@ def get_backups(device_id):
 	cur = con.cursor()
 	res = cur.execute("SELECT BackupID, BackupStamp, ForceOffer, Payload FROM Backups WHERE DeviceID=\"" + device_id + "\"")
 	x = res.fetchall()
+	con.close()
 	if x is None:
 		return []
 	else:
 		return x
 
-def add_backup(device_id, b64str):
+def get_last_backup(device_id):
 	if not device_id.isalnum():
-		return
+		return None
 	con = get_connection("backups")
 	cur = con.cursor()
-	res = cur.execute("INSERT INTO Backups(DeviceID, BackupStamp, ForceOffer, Payload) VALUES(?, ?, ?, ?)", (device_id, int(time.time()), False, b64str))
+	res = cur.execute("SELECT BackupID, BackupStamp, ForceOffer, Payload FROM Backups WHERE DeviceID=\"" + device_id + "\" ORDER BY BackupID DESC LIMIT 1")
+	x = res.fetchall()
+	con.close()
+	if x is None:
+		return []
+	else:
+		return x[0]
+
+def add_backup(device_id, b64str):
+	if not device_id.isalnum():
+			return
+	con = get_connection("backups")
+	cur = con.cursor()
+	stamp = int(time.time())
+	res = cur.execute("INSERT INTO Backups(DeviceID, BackupStamp, ForceOffer, Payload) VALUES(?, ?, ?, ?)", (device_id, stamp, False, b64str))
 	con.commit()
 	con.close()
 	return
@@ -68,6 +91,20 @@ def offer_backup_id_to_new_device(refID, device_id):
 		return
 	add_backup(device_id, srcBackup)
 	return
+
+# If you used my server prior to zlib saves, uncomment and run once.
+#import zlib
+#import base64
+#def compress_to_zlib():
+#	con = get_connection("backups")
+#	cur = con.cursor()
+#	res = cur.execute("SELECT BackupID, ForceOffer, Payload FROM Backups");
+#	x = res.fetchall()
+#	con.close()
+#	for backup in x:
+#		print(backup[0])
+#		update_backup(backup[0], base64.b64encode(zlib.compress(base64.b64decode(backup[2]))), backup[1])
+#compress_to_zlib()
 
 ## MANUAL TRANSFER EXAMPLE
 ## TODO: Admin API endpoint for this

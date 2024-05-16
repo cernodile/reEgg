@@ -5,6 +5,7 @@
 import base64
 import datetime
 import time
+import zlib
 
 import ei_pb2 as EIProto
 
@@ -38,12 +39,14 @@ def ei_routes(subpath):
 		Backups = db_store.get_backups(ContactReq.user_id)
 		if len(Backups) > 0:
 			# Lets process backups - check for any forced ones first
+			now = datetime.datetime.now()
+			cleanup_ids = []
 			for backup in Backups:
 				if backup[2] == True:
 					# Force backup found - lets serialize the payload
 					SaveBackup = EIProto.Backup()
 					try:
-						SaveBackup.ParseFromString(base64.b64decode(backup[3]))
+						SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(backup[3])))
 						SaveBackup.force_backup = True
 						SaveBackup.force_offer_backup = True
 						ContactResp.backup.CopyFrom(SaveBackup)
@@ -52,6 +55,12 @@ def ei_routes(subpath):
 					except:
 						print("Failed to force serve backup - perhaps some logic error?")
 						break
+				else:
+					then = datetime.datetime.fromtimestamp(backup[1])
+					if (now - then).days > 1:
+						cleanup_ids.append(backup[0])
+			if len(cleanup_ids) > 0:
+				db_store.cleanup_backups(cleanup_ids)
 			# TODO: Check for soul eggs/eggs of prophecy and determine algorithm for "is it worth offering?"
 		elif ContactReq.user_id in upgrade_cache:
 			print("Found an unupgraded save - lets upgrade the permit level to Pro")
@@ -69,7 +78,7 @@ def ei_routes(subpath):
 			upgrade_cache[SaveBackup.user_id] = SaveBackup
 		else:
 			# start storing backups after permit upgrades
-			db_store.add_backup(SaveBackup.user_id, request.form["data"].replace(" ", "+"))
+			db_store.add_backup(SaveBackup.user_id, base64.b64encode(zlib.compress(SaveBackup.SerializeToString())))
 	elif subpath == "get_periodicals":
 		PeriodicalResp = EIProto.PeriodicalsResponse()
 		for evt in events.get_active_events():
@@ -108,7 +117,7 @@ def ei_ps_routes(userid, method):
 	if len(Backups) == 0:
 		return "No such user found", 404
 	SaveBackup = EIProto.Backup()
-	SaveBackup.ParseFromString(base64.b64decode(Backups[-1][3]))
+	SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(Backups[-1][3])))
 	if method == "break_piggy":
 		if not SaveBackup.stats.piggy_full:
 			return "Piggy Bank not full.", 403
@@ -124,7 +133,7 @@ def ei_ps_routes(userid, method):
 			# BEFORE ENABLING - Piggy bank doesn't reset, need to find a way to trigger that.
 			SaveBackup.game.piggy_bank = 1
 			SaveBackup.game.piggy_full_alert_shown = False
-			db_store.update_backup(Backups[-1][0], base64.b64encode(SaveBackup.SerializeToString()), True)
+			db_store.update_backup(Backups[-1][0], base64.b64encode(zlib.compress(SaveBackup.SerializeToString())), True)
 			return "Broke the piggy bank - accept the backup offer when restarting your game.", 200
 		else:
 			return "You need to have waited at least a week since filling the piggy bank before breaking it.", 403
