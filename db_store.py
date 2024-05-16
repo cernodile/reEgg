@@ -68,7 +68,7 @@ def get_last_backup(device_id):
 
 def add_backup(device_id, b64str):
 	if not device_id.isalnum():
-			return
+		return
 	con = get_connection("backups")
 	cur = con.cursor()
 	stamp = int(time.time())
