@@ -2,6 +2,10 @@
 import ei_pb2 as EIProto
 import json
 import time
+import math
+
+# TODO: Co-op contracts, toggle this off when we have them
+ALL_SOLO_CONTRACTS = True
 
 # Keep a cache of all contracts
 contract_epoch = int(time.time())
@@ -16,9 +20,9 @@ def get_active_contracts():
 	time_since_epoch = time.time() - contract_epoch
 	i = 0
 	for contract in global_contract_db["legacy"]:
-		# Leggacy ones are active for a week, one per week
+		# Leggacy ones are active for a week, twice per week
 		i += 1
-		expiry_time = (604800 * i) - time_since_epoch
+		expiry_time = (604800 * math.ceil(i / 2)) + (345600 if not i % 2 else 0) - time_since_epoch
 		# It's expired, get the next one
 		if expiry_time < 0:
 			continue
@@ -41,12 +45,19 @@ def __convert_contract_to_proto(obj):
 	contract.minutes_per_token = obj["token_interval"]
 	contract.length_seconds = obj["duration"]
 	contract.coop_allowed = False
+	scaler = 1.0
+	if ALL_SOLO_CONTRACTS and "coop_members" in obj:
+		# Not all contracts are made equal. If we divide it at an absolute, it becomes too easy
+		# Still need to pinpoint the ratio based on experience.
+		scale_factor = obj["coop_members"] * 0.35
+		if scale_factor > 1.0:
+			scaler = 1.0 / scale_factor
 	for goal_set_src in obj["goalsets"]:
 		goal_set = contract.goal_sets.add()
 		for goal_src in goal_set_src:
 			goal = goal_set.goals.add()
 			goal.type = EIProto.GoalType.EGGS_LAID
-			goal.target_amount = goal_src["deliver"]
+			goal.target_amount = goal_src["deliver"] * scaler
 			goal.reward_type = EIProto.RewardType.Value(goal_src["reward_type"])
 			if goal.reward_type == EIProto.RewardType.BOOST:
 				goal.reward_sub_type = goal_src["reward_str"]

@@ -7,6 +7,7 @@
       "description": "A Quantum rift is causing people to hear different words in a viral video. Scientists have a fix but they need your help.",
       "duration": 345600.0,
       "token_interval": 60.0,
+      "coop_members": 7,
       "egg": "QUANTUM",
       "goalsets": [
         [
@@ -91,6 +92,7 @@
       "description": "A mysterious investor is looking for a lot of edible eggs.\nBut he wants the full amount or nothing.",
       "duration": 799980.0,
       "token_interval": 60.0,
+      "coop_members": 3,
       "egg": "EDIBLE",
       "goalsets": [
         [
@@ -117,6 +119,7 @@
       "description": "Spaceflight is booming due to re-usable rockets.\nHelp fill the demand with this contract.",
       "duration": 604800.0,
       "token_interval": 120.0,
+      "coop_members": 6,
       "egg": "ROCKET_FUEL",
       "goalsets": [
         [

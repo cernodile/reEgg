@@ -22,76 +22,93 @@ app = Flask(__name__)
 contracts.load_contracts()
 db_store.create_backups_db()
 
-@app.route('/ei/<path:subpath>', methods=['POST'])
-def ei_routes(subpath):
-	print("REQ: /ei/" + subpath)
-	if subpath == "daily_gift_info":
-		DateInfo = (datetime.datetime.now() - datetime.datetime(1970, 1, 1))
-		GiftResponse = EIProto.DailyGiftInfo()
-		GiftResponse.current_day = DateInfo.days
-		GiftResponse.seconds_to_next_day = 86400 - DateInfo.seconds
-		return base64.b64encode(GiftResponse.SerializeToString())
+# /ei/ routes
+@app.route('/ei/first_contact', methods=['POST'])
+def ei_first_contact():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
-	if subpath == "first_contact":
-		ContactReq = EIProto.EggIncFirstContactRequest()
-		ContactReq.ParseFromString(data)
-		ContactResp = EIProto.EggIncFirstContactResponse()
-		Backups = db_store.get_backups(ContactReq.user_id)
-		if len(Backups) > 0:
-			# Lets process backups - check for any forced ones first
-			now = datetime.datetime.now()
-			cleanup_ids = []
-			for backup in Backups:
-				if backup[2] == True:
-					# Force backup found - lets serialize the payload
-					SaveBackup = EIProto.Backup()
-					try:
-						SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(backup[3])))
-						SaveBackup.force_backup = True
-						SaveBackup.force_offer_backup = True
-						ContactResp.backup.CopyFrom(SaveBackup)
-						db_store.update_backup(backup[0], backup[3], False)
-						break
-					except:
-						print("Failed to force serve backup - perhaps some logic error?")
-						break
-				else:
-					then = datetime.datetime.fromtimestamp(backup[1])
-					if (now - then).days > 1:
-						cleanup_ids.append(backup[0])
-			if len(cleanup_ids) > 0:
-				db_store.cleanup_backups(cleanup_ids)
-			# TODO: Check for soul eggs/eggs of prophecy and determine algorithm for "is it worth offering?"
-		elif ContactReq.user_id in upgrade_cache:
-			print("Found an unupgraded save - lets upgrade the permit level to Pro")
-			ContactResp.backup.CopyFrom(cache[ContactReq.user_id])
-			del upgrade_cache[ContactReq.user_id]
-		return base64.b64encode(ContactResp.SerializeToString())
-	elif subpath == "save_backup":
-		SaveBackup = EIProto.Backup()
-		SaveBackup.ParseFromString(bytes(data))
-		#print(SaveBackup)
-		if SaveBackup.game.permit_level == 0:
-			SaveBackup.game.permit_level = 1
-			SaveBackup.force_backup = True
-			SaveBackup.force_offer_backup = True
-			upgrade_cache[SaveBackup.user_id] = SaveBackup
-		else:
-			# start storing backups after permit upgrades
-			db_store.add_backup(SaveBackup.user_id, base64.b64encode(zlib.compress(SaveBackup.SerializeToString())))
-	elif subpath == "get_periodicals":
-		PeriodicalResp = EIProto.PeriodicalsResponse()
-		for evt in events.get_active_events():
-			e = PeriodicalResp.events.events.add()
-			e.CopyFrom(evt)
-		for contract in contracts.get_active_contracts():
-			c = PeriodicalResp.contracts.contracts.add()
-			c.CopyFrom(contract)
-		return base64.b64encode(PeriodicalResp.SerializeToString())
+	ContactReq = EIProto.EggIncFirstContactRequest()
+	ContactReq.ParseFromString(data)
+	ContactResp = EIProto.EggIncFirstContactResponse()
+	Backups = db_store.get_backups(ContactReq.user_id)
+	if len(Backups) > 0:
+		# Lets process backups - check for any forced ones first
+		now = datetime.datetime.now()
+		cleanup_ids = []
+		for backup in Backups:
+			if backup[2] == True:
+				# Force backup found - lets serialize the payload
+				SaveBackup = EIProto.Backup()
+				try:
+					SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(backup[3])))
+					SaveBackup.force_backup = True
+					SaveBackup.force_offer_backup = True
+					ContactResp.backup.CopyFrom(SaveBackup)
+					db_store.update_backup(backup[0], backup[3], False)
+					break
+				except:
+					print("Failed to force serve backup - perhaps some logic error?")
+					break
+			else:
+				then = datetime.datetime.fromtimestamp(backup[1])
+			if (now - then).days > 1:
+					cleanup_ids.append(backup[0])
+		if len(cleanup_ids) > 0:
+			db_store.cleanup_backups(cleanup_ids)
+		# TODO: Check for soul eggs/eggs of prophecy and determine algorithm for "is it worth offering?"
+	elif ContactReq.user_id in upgrade_cache:
+		print("Found an unupgraded save - lets upgrade the permit level to Pro")
+		ContactResp.backup.CopyFrom(cache[ContactReq.user_id])
+		del upgrade_cache[ContactReq.user_id]
+	return base64.b64encode(ContactResp.SerializeToString())
+
+@app.route('/ei/save_backup', methods=['POST'])
+def ei_save_backup():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	SaveBackup = EIProto.Backup()
+	SaveBackup.ParseFromString(bytes(data))
+	#print(SaveBackup)
+	if SaveBackup.game.permit_level == 0:
+		SaveBackup.game.permit_level = 1
+		SaveBackup.force_backup = True
+		SaveBackup.force_offer_backup = True
+		upgrade_cache[SaveBackup.user_id] = SaveBackup
 	else:
-		print("DATA", base64.b64encode(data))
+		# start storing backups after permit upgrades
+		db_store.add_backup(SaveBackup.user_id, base64.b64encode(zlib.compress(SaveBackup.SerializeToString())))
 	return ""
 
+@app.route('/ei/daily_gift_info', methods=['POST'])
+def ei_daily_gift_info():
+	DateInfo = (datetime.datetime.now() - datetime.datetime(1970, 1, 1))
+	GiftResponse = EIProto.DailyGiftInfo()
+	GiftResponse.current_day = DateInfo.days
+	GiftResponse.seconds_to_next_day = 86400 - DateInfo.seconds
+	return base64.b64encode(GiftResponse.SerializeToString())
+
+@app.route('/ei/get_periodicals', methods=['POST'])
+def ei_periodicals_request():
+	PeriodicalResp = EIProto.PeriodicalsResponse()
+	PeriodicalResp.contracts.warning_message = "Welcome to reEgg Server Emulator\nLeggacy contracts available every Monday/Friday"
+	for evt in events.get_active_events():
+		e = PeriodicalResp.events.events.add()
+		e.CopyFrom(evt)
+	for contract in contracts.get_active_contracts():
+		c = PeriodicalResp.contracts.contracts.add()
+		c.CopyFrom(contract)
+	return base64.b64encode(PeriodicalResp.SerializeToString())
+
+@app.route('/ei/<path:subpath>', methods=['POST'])
+def ei_unidentified_routes(subpath):
+	print("UNIMPLEMENTED REQ: /ei/" + subpath)
+	if not request.form or "data" not in request.form:
+		print("No data included in request")
+		return "", 404
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	print("DATA", base64.b64encode(data))
+	return "", 404
+
+
+# /ei_data/ routes
 @app.route('/ei_data/<path:subpath>', methods=['POST'])
 def ei_data_rotues(subpath):
 	print("REQ /ei_data/" + subpath)
@@ -104,6 +121,7 @@ def ei_data_rotues(subpath):
 		print(request.form)
 	return ""
 
+# /ei_ps/ routes (custom)
 # TODO: ratelimit this
 @app.route('/ei_ps/<userid>/<method>', methods=['POST'])
 def ei_ps_routes(userid, method):
