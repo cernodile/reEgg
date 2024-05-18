@@ -1,3 +1,3 @@
-Contracts sourced from https://eicoop-carpet.netlify.app/
+Contracts sourced from https://github.com/fanaticscripter/Egg/blob/master/contracts/data/contracts.json
 
-For leggacy: Choose "Type: Leggacy" as filter, start going from Laurel vs Yanny as that's the first one with Standard/Elite
+Filtered out contracts that contained "LEGACY" or "LEGGACY" in its name.

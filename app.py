@@ -4,6 +4,7 @@
 ############
 import base64
 import datetime
+import math
 import time
 import zlib
 
@@ -22,6 +23,12 @@ app = Flask(__name__)
 contracts.load_contracts()
 db_store.create_backups_db()
 
+def calculate_backup_checksum(SaveBackup):
+	# WIP - Need to figure out what the 0 and 61 still are.
+	# 61 - best fit is SaveBackup.mission.missions array length, which same time makes zero sense
+	# 0 - unknown still
+	return int(SaveBackup.game.golden_eggs_earned) + 0 + SaveBackup.farms[0].num_chickens + 61 + int(math.log10(SaveBackup.game.lifetime_cash_earned) * 100)
+
 # /ei/ routes
 @app.route('/ei/first_contact', methods=['POST'])
 def ei_first_contact():
@@ -39,7 +46,7 @@ def ei_first_contact():
 				# Force backup found - lets serialize the payload
 				SaveBackup = EIProto.Backup()
 				try:
-					SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(backup[3])))
+					SaveBackup.ParseFromString(zlib.decompress(base64.b64decode(backup[3])))
 					SaveBackup.force_backup = True
 					SaveBackup.force_offer_backup = True
 					ContactResp.backup.CopyFrom(SaveBackup)
@@ -66,7 +73,6 @@ def ei_save_backup():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	SaveBackup = EIProto.Backup()
 	SaveBackup.ParseFromString(bytes(data))
-	#print(SaveBackup)
 	if SaveBackup.game.permit_level == 0:
 		SaveBackup.game.permit_level = 1
 		SaveBackup.force_backup = True
@@ -135,7 +141,7 @@ def ei_ps_routes(userid, method):
 	if len(Backups) == 0:
 		return "No such user found", 404
 	SaveBackup = EIProto.Backup()
-	SaveBackup.ParseFromString(base64.b64decode(zlib.decompress(Backups[-1][3])))
+	SaveBackup.ParseFromString(zlib.decompress(base64.b64decode(Backups[-1][3])))
 	if method == "break_piggy":
 		if not SaveBackup.stats.piggy_full:
 			return "Piggy Bank not full.", 403

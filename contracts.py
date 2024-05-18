@@ -1,5 +1,6 @@
 # contracts.py - Contract Definitions parser and provider
 import ei_pb2 as EIProto
+import base64
 import json
 import time
 import math
@@ -8,7 +9,7 @@ import math
 ALL_SOLO_CONTRACTS = True
 
 # Keep a cache of all contracts
-contract_epoch = int(time.time())
+contract_epoch = 1714867200
 global_contract_db = {"legacy": [], "normal": [], "permanent": []}
 
 def get_active_contracts():
@@ -38,40 +39,23 @@ def get_active_contracts():
 def __convert_contract_to_proto(obj):
 	# Map values from JSON object to Protobuf object.
 	contract = EIProto.Contract()
-	contract.identifier = obj["id"]
-	contract.name = obj["name"]
-	contract.description = obj["description"]
-	contract.egg = EIProto.Egg.Value(obj["egg"])
-	contract.minutes_per_token = obj["token_interval"]
-	contract.length_seconds = obj["duration"]
-	contract.coop_allowed = False
+	contract.ParseFromString(base64.b64decode(obj["proto"]))
 	scaler = 1.0
-	if ALL_SOLO_CONTRACTS and "coop_members" in obj:
+	if ALL_SOLO_CONTRACTS:
+		contract.coop_allowed = False
 		# Not all contracts are made equal. If we divide it at an absolute, it becomes too easy
 		# Still need to pinpoint the ratio based on experience.
-		scale_factor = obj["coop_members"] * 0.35
+		scale_factor = contract.max_coop_size * 0.35
 		if scale_factor > 1.0:
 			scaler = 1.0 / scale_factor
-	for goal_set_src in obj["goalsets"]:
-		goal_set = contract.goal_sets.add()
-		for goal_src in goal_set_src:
-			goal = goal_set.goals.add()
-			goal.type = EIProto.GoalType.EGGS_LAID
-			goal.target_amount = goal_src["deliver"] * scaler
-			goal.reward_type = EIProto.RewardType.Value(goal_src["reward_type"])
-			if goal.reward_type == EIProto.RewardType.BOOST:
-				goal.reward_sub_type = goal_src["reward_str"]
-			goal.reward_amount = goal_src["reward_amt"]
 	return contract
 
 def load_contracts():
 	with open("data/contracts.json", "r") as file:
 		obj = json.loads(file.read())
-		global contract_epoch
-		contract_epoch = obj["epoch"]
 		time_since_epoch = time.time() - contract_epoch
 		i = 0
-		for source in obj["legacy"]:
+		for source in obj:
 			global_contract_db["legacy"].append(__convert_contract_to_proto(source))
 			i += 1
 			global_contract_db["legacy"][-1].expiration_time = (604800 * i) - time_since_epoch
@@ -82,21 +66,7 @@ def load_contracts():
 def create_perma_contract():
 	obj = {
 		"id": "first-contract",
-		"name": "Your First Contract",
-		"description": "We heard you are open to contract work! Help fill this order from the local pharmacy!",
-		"egg": "MEDICAL",
-		"duration": 14400.0,
-		"token_interval": 5.0,
-		"goalsets": [
-			[
-				{"deliver": 100000.0, "reward_type": "GOLD", "reward_amt": 500},
-				{"deliver": 5000000000.0, "reward_type": "PIGGY_FILL", "reward_amt": 10000}
-			],
-			[
-				{"deliver": 100000.0, "reward_type": "GOLD", "reward_amt": 192},
-				{"deliver": 5000000000.0, "reward_type": "PIGGY_FILL", "reward_amt": 10000}
-			]
-		]
+		"proto": "Cg5maXJzdC1jb250cmFjdBADIAA5AAAAAAAgzEBKE1lvdXIgRmlyc3QgQ29udHJhY3RSVVdlIGhlYXJkIHlvdSBhcmUgb3BlbiB0byBjb250cmFjdCB3b3JrISBIZWxwIGZpbGwgdGhpcyBvcmRlciBmcm9tIHRoZSBsb2NhbCBwaGFybWFjeSF5AAAAAAAAFECCATAKFggBEQAAAAAAavhAGAIpAAAAAABAf0AKFggBEQAAACBfoPJBGAYpAAAAAACIw0CCATAKFggBEQAAAAAAavhAGAIpAAAAAAAAaEAKFggBEQAAACBfoPJBGAYpAAAAAACIw0A="
 	}
 	contract = __convert_contract_to_proto(obj)
 	# The permanent "first contract" is a special case where it should never expire and it should also not appear after 5000 Soul Eggs

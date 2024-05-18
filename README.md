@@ -12,7 +12,7 @@ As API servers shut down, many apps are immediately locked out from being useabl
 You will need a VPN app on your phone that can overwrite DNS records (such as AdAway), redirect www.auxbrain.com to the server that's hosting the emulator.
 
 ## Configuration
-You might want to check out `data/` directory and check for any epoch values. I am using 05/05/2024 as the default epoch for scheduling contracts for example.
+You might want to check out headers of source files for any server epochs. I am using 05/05/2024 as the default epoch for scheduling contracts for example.
 
 ## Roadmap
 - [ ] First contact
