@@ -22,6 +22,7 @@ upgrade_cache = {}
 app = Flask(__name__)
 contracts.load_contracts()
 db_store.create_backups_db()
+db_store.create_contracts_db()
 
 def calculate_backup_checksum(SaveBackup):
 	# WIP - Need to figure out what the 0 and 61 still are.
@@ -83,6 +84,24 @@ def ei_save_backup():
 		db_store.add_backup(SaveBackup.user_id, base64.b64encode(zlib.compress(SaveBackup.SerializeToString())))
 	return ""
 
+@app.route('/ei/user_data_info', methods=['POST'])
+def ei_user_data_info():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	udiReq = EIProto.UserDataInfoRequest()
+	udiReq.ParseFromString(data)
+	udiRes = EIProto.UserDataInfoResponse()
+	Backups = db_store.get_backups(udiReq.device_id)
+	if len(Backups) == 0:
+		return base64.b64encode(udiRes.SerializeToString())
+	LastBackup = EIProto.Backup()
+	LastBackup.ParseFromString(zlib.decompress(base64.b64decode(Backups[-1][3])))
+	udiRes.backup_checksum = LastBackup.checksum
+	udiRes.backup_total_cash = LastBackup.game.lifetime_cash_earned
+	memberships = db_store.get_coop_memberships(udiReq.device_id)
+	for membership in memberships:
+		udiRes.coop_memberships.append(membership[1])
+	return base64.b64encode(udiRes.SerializeToString())
+
 @app.route('/ei/daily_gift_info', methods=['POST'])
 def ei_daily_gift_info():
 	DateInfo = (datetime.datetime.now() - datetime.datetime(1970, 1, 1))
@@ -102,6 +121,103 @@ def ei_periodicals_request():
 		c = PeriodicalResp.contracts.contracts.add()
 		c.CopyFrom(contract)
 	return base64.b64encode(PeriodicalResp.SerializeToString())
+
+@app.route('/ei/query_coop', methods=['POST'])
+def ei_query_coop():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	QueryCoop = EIProto.QueryCoopRequest()
+	QueryCoop.ParseFromString(data)
+	QueryCoopResp = EIProto.QueryCoopResponse()
+	db_query = db_store.is_coop_identifier_used(QueryCoop.coop_identifier)
+	if db_query is not None:
+		QueryCoopResp.exists = True
+	else:
+		QueryCoopResp.exists = False
+	if QueryCoopResp.exists:
+		if QueryCoop.league != db_query:
+			QueryCoopResp.different_league = True
+	# TODO: Ask contract defs for max coop allowed.
+	#print(QueryCoopResp)
+	return base64.b64encode(QueryCoopResp.SerializeToString())
+
+@app.route('/ei/create_coop', methods=['POST'])
+def ei_create_coop():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	CreateCoop = EIProto.CreateCoopRequest()
+	CreateCoop.ParseFromString(data)
+	CreateResponse = EIProto.CreateCoopResponse()
+	# Double check if in use
+	db_query = db_store.is_coop_identifier_used(CreateCoop.coop_identifier)
+	if db_query is not None:
+		CreateResponse.success = False
+		CreateResponse.message = "That co-op already exists."
+		return base64.b64encode(CreateResponse.SerializeToString())
+	# Can we identify the contract?
+	contract = contracts.get_contract_by_identifier(CreateCoop.contract_identifier)
+	if contract is None:
+		CreateResponse.success = False
+		CreateResponse.message = "Couldn't find your contract."
+		return base64.b64encode(CreateResponse.SerializeToString())
+	# Calculate timestamp of the contract so we can later tell actual seconds left to new joins.
+	stamp = int(time.time() - contract.length_seconds + CreateCoop.seconds_remaining)
+	# Actually creating the co-op now.
+	res = db_store.create_coop_contract(CreateCoop.coop_identifier, CreateCoop.contract_identifier, CreateCoop.league, stamp, CreateCoop.user_id, CreateCoop.user_name)
+	if not res:
+		CreateResponse.success = False
+		CreateResponse.message = "Unknown error with your request."
+	else:
+		CreateResponse.success = True
+		CreateResponse.message = "Co-op created."
+	return base64.b64encode(CreateResponse.SerializeToString())
+
+@app.route('/ei/coop_status', methods=['POST'])
+def ei_coop_status():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	StatusReq = EIProto.ContractCoopStatusRequest()
+	StatusReq.ParseFromString(data)
+	StatusResp = EIProto.ContractCoopStatusResponse()
+	# Get some base info (TODO: error handling)
+	BaseInfo = db_store.get_contract_info(StatusReq.coop_identifier)
+	ContribInfo = db_store.get_coop_contributors(StatusReq.coop_identifier)
+	ContractInfo = contracts.get_contract_by_identifier(BaseInfo[2])
+	TotalEggs = 0
+	for x in ContribInfo:
+		contributor = StatusResp.contributors.add()
+		contributor.user_id = x[0]
+		contributor.user_name = x[2]
+		contributor.contribution_amount = x[4]
+		TotalEggs += x[4]
+		contributor.contribution_rate = x[5]
+		contributor.soul_power = x[6]
+		contributor.active = True
+	StatusResp.coop_identifier = StatusReq.coop_identifier
+	StatusResp.total_amount = TotalEggs
+	StatusResp.auto_generated = False
+	StatusResp.public = False
+	StatusResp.creator_id = BaseInfo[5]
+	StatusResp.seconds_remaining = (BaseInfo[4] + int(ContractInfo.length_seconds)) - int(time.time())
+	return base64.b64encode(StatusResp.SerializeToString())
+
+@app.route('/ei/update_coop_status', methods=['POST'])
+def ei_update_coop_status():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	UpdateReq = EIProto.ContractCoopStatusUpdateRequest()
+	UpdateReq.ParseFromString(data)
+	db_store.update_coop_contribution(UpdateReq.coop_identifier, UpdateReq.user_id, UpdateReq.amount, UpdateReq.rate, UpdateReq.soul_power, UpdateReq.boost_tokens, UpdateReq.time_cheats_detected)
+	Resp = EIProto.ContractCoopStatusUpdateResponse()
+	Resp.finalized = True
+	return base64.b64encode(Resp.SerializeToString())
+
+@app.route('/ei/auto_join_coop', methods=['POST'])
+def ei_auto_join_coop():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	AutoJoinCoopRequest = EIProto.AutoJoinCoopRequest()
+	AutoJoinCoopRequest.ParseFromString(data)
+	print(AutoJoinCoopRequest)
+	Resp = EIProto.JoinCoopResponse()
+	Resp.success = False
+	Resp.message = "Unable to find any public co-ops to join."
+	return base64.b64encode(Resp.SerializeToString())
 
 @app.route('/ei/<path:subpath>', methods=['POST'])
 def ei_unidentified_routes(subpath):

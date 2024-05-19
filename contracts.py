@@ -6,7 +6,7 @@ import time
 import math
 
 # TODO: Co-op contracts, toggle this off when we have them
-ALL_SOLO_CONTRACTS = True
+ALL_SOLO_CONTRACTS = False
 
 # Keep a cache of all contracts
 contract_epoch = 1714867200
@@ -36,6 +36,12 @@ def get_active_contracts():
 	# DESIGN QUESTION: Do we even *want* regular contracts? Could just run two "leggacy" branches in parallel.
 	return list
 
+def get_contract_by_identifier(identifier):
+	for contract in global_contract_db["legacy"]:
+		if contract.identifier == identifier:
+			return contract
+	return None
+
 def __convert_contract_to_proto(obj):
 	# Map values from JSON object to Protobuf object.
 	contract = EIProto.Contract()
@@ -50,7 +56,7 @@ def __convert_contract_to_proto(obj):
 			scaler = 1.0 / scale_factor
 			for goalset in contract.goal_sets:
 				for goal in goalset.goals:
-					goal.target_amount *= scale_factor
+					goal.target_amount *= scaler
 	return contract
 
 def load_contracts():
@@ -76,5 +82,9 @@ def create_perma_contract():
 	contract.expiration_time = 100000000.0
 	contract.max_soul_eggs = 5000.0
 	return contract
+
+
+def start_new_coop(contract_id, name):
+	return
 
 global_contract_db["permanent"].append(create_perma_contract())
