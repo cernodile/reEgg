@@ -48,6 +48,9 @@ def __convert_contract_to_proto(obj):
 		scale_factor = contract.max_coop_size * 0.35
 		if scale_factor > 1.0:
 			scaler = 1.0 / scale_factor
+			for goalset in contract.goal_sets:
+				for goal in goalset.goals:
+					goal.target_amount *= scale_factor
 	return contract
 
 def load_contracts():
