@@ -24,6 +24,8 @@ contracts.load_contracts()
 db_store.create_backups_db()
 db_store.create_contracts_db()
 
+contracts_motd = "Welcome to reEgg Server Emulator\nLeggacy contracts available every Monday/Friday"
+
 def calculate_backup_checksum(SaveBackup):
 	# WIP - Need to figure out what the 0 and 61 still are.
 	# 61 - best fit is SaveBackup.mission.missions array length, which same time makes zero sense
@@ -110,16 +112,26 @@ def ei_daily_gift_info():
 	GiftResponse.seconds_to_next_day = 86400 - DateInfo.seconds
 	return base64.b64encode(GiftResponse.SerializeToString())
 
+def populate_contracts_response(obj):
+	if obj is None:
+		obj = EIProto.ContractsResponse()
+	obj.warning_message = contracts_motd
+	for contract in contracts.get_active_contracts():
+		c = obj.contracts.add()
+		c.CopyFrom(contract)
+	return obj
+
+@app.route('/ei/get_contracts', methods=['POST'])
+def ei_get_contracts():
+	return base64.b64encode(populate_contracts_response(None).SerializeToString())
+
 @app.route('/ei/get_periodicals', methods=['POST'])
 def ei_periodicals_request():
 	PeriodicalResp = EIProto.PeriodicalsResponse()
-	PeriodicalResp.contracts.warning_message = "Welcome to reEgg Server Emulator\nLeggacy contracts available every Monday/Friday"
+	populate_contracts_response(PeriodicalResp.contracts)
 	for evt in events.get_active_events():
 		e = PeriodicalResp.events.events.add()
 		e.CopyFrom(evt)
-	for contract in contracts.get_active_contracts():
-		c = PeriodicalResp.contracts.contracts.add()
-		c.CopyFrom(contract)
 	return base64.b64encode(PeriodicalResp.SerializeToString())
 
 @app.route('/ei/query_coop', methods=['POST'])
@@ -136,8 +148,10 @@ def ei_query_coop():
 	if QueryCoopResp.exists:
 		if QueryCoop.league != db_query:
 			QueryCoopResp.different_league = True
-	# TODO: Ask contract defs for max coop allowed.
-	#print(QueryCoopResp)
+		else:
+			ContractInfo = contracts.get_contract_by_identifier(QueryCoop.contract_identifier)
+			if db_store.is_coop_full(QueryCoop.coop_identifier, ContractInfo.max_coop_size):
+				QueryCoopResp.full = True
 	return base64.b64encode(QueryCoopResp.SerializeToString())
 
 @app.route('/ei/create_coop', methods=['POST'])
@@ -208,16 +222,92 @@ def ei_update_coop_status():
 	Resp.finalized = True
 	return base64.b64encode(Resp.SerializeToString())
 
+@app.route('/ei/join_coop', methods=['POST'])
+def ei_join_coop():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	JoinCoopRequest = EIProto.JoinCoopRequest()
+	JoinCoopRequest.ParseFromString(data)
+	JoinResponse = EIProto.JoinCoopResponse()
+	JoinResponse.coop_identifier = JoinCoopRequest.coop_identifier
+	db_query = db_store.is_coop_identifier_used(JoinCoopRequest.coop_identifier)
+	if db_query is None:
+		JoinResponse.success = False
+		JoinResponse.message = "That co-op doesn't exist."
+		return base64.b64encode(JoinResponse.SerializeToString())
+	if db_query != JoinCoopRequest.league:
+		JoinResponse.success = False
+		JoinResponse.message = "You can't join a " + ("Elite" if db_query == 1 else "Standard") + " contract."
+		return base64.b64encode(JoinResponse.SerializeToString())
+	BaseInfo = db_store.get_contract_info(JoinCoopRequest.coop_identifier)
+	ContribInfo = db_store.get_coop_contributors(JoinCoopRequest.coop_identifier)
+	ContractInfo = contracts.get_contract_by_identifier(BaseInfo[2])
+	if len(ContribInfo) - 1 >= ContractInfo.max_coop_size:
+		JoinResponse.success = False
+		JoinResponse.message = "Co-op is full!"
+		return base64.b64encode(JoinResponse.SerializeToString())
+	if BaseInfo[2] != JoinCoopRequest.contract_identifier:
+		JoinResponse.success = False
+		JoinResponse.message = "This co-op is not made for this contract."
+		return base64.b64encode(JoinResponse.SerializeToString())
+	# TODO: bans from coops
+	db_store.insert_coop_contribution(JoinCoopRequest.coop_identifier, JoinCoopRequest.user_id, JoinCoopRequest.user_name, JoinCoopRequest.soul_power)
+	JoinResponse.success = True
+	JoinResponse.banned = False
+	JoinResponse.seconds_remaining = (BaseInfo[4] + int(ContractInfo.length_seconds)) - int(time.time())
+	return base64.b64encode(JoinResponse.SerializeToString())
+
 @app.route('/ei/auto_join_coop', methods=['POST'])
 def ei_auto_join_coop():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	AutoJoinCoopRequest = EIProto.AutoJoinCoopRequest()
 	AutoJoinCoopRequest.ParseFromString(data)
-	print(AutoJoinCoopRequest)
 	Resp = EIProto.JoinCoopResponse()
+	Contract = contracts.get_contract_by_identifier(AutoJoinCoopRequest.contract_identifier)
+	if Contract is None:
+		Resp.success = False
+		Resp.message = "Invalid contract."
+		return base64.b64encode(Resp.SerializeToString())
+	coops = db_store.get_public_coops(AutoJoinCoopRequest.contract_identifier)
 	Resp.success = False
-	Resp.message = "Unable to find any public co-ops to join."
+	for coop in coops:
+		coop_identifier = coop[0]
+		# TODO: Ban check
+		if not db_store.is_coop_full(coop_identifier, Contract.max_coop_size):
+			Resp.success = True
+			db_store.insert_coop_contribution(coop_identifier, AutoJoinCoopRequest.user_id, AutoJoinCoopRequest.user_name, AutoJoinCoopRequest.soul_power)
+			BaseInfo = db_store.get_contract_info(coop_identifier)
+			Resp.coop_identifier = coop_identifier
+			Resp.banned = False
+			Resp.seconds_remaining = (BaseInfo[4] + int(Contract.length_seconds)) - int(time.time())
+			break
+	if Resp.success == False:
+		Resp.message = "No public contracts found."
+	# TODO: Auto-create co-op if none found
 	return base64.b64encode(Resp.SerializeToString())
+
+@app.route('/ei/leave_coop', methods=['POST'])
+def ei_leave_coop():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	LeaveCoopRequest = EIProto.LeaveCoopRequest()
+	LeaveCoopRequest.ParseFromString(data)
+	db_store.erase_coop_contribution(LeaveCoopRequest.coop_identifier, LeaveCoopRequest.player_identifier)
+	# TODO: Deepdive ghidra to see what this expects?
+	return ""
+
+@app.route('/ei/update_coop_permissions', methods=['POST'])
+def ei_update_coop_permissions():
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	PermUpdateReq = EIProto.UpdateCoopPermissionsRequest()
+	PermUpdateReq.ParseFromString(data)
+	PermUpdateResp = EIProto.UpdateCoopPermissionsResponse()
+	BaseInfo = db_store.get_contract_info(PermUpdateReq.coop_identifier)
+	if BaseInfo[5] != PermUpdateReq.requesting_user_id:
+		PermUpdateResp.success = False
+		PermUpdateResp.message = "Only the co-op creator can change the permissions."
+		return base64.b64encode(PermUpdateResp.SerializeToString())
+	db_store.change_coop_public_state(PermUpdateReq.coop_identifier, PermUpdateReq.public)
+	PermUpdateResp.success = True
+	return base64.b64encode(PermUpdateResp.SerializeToString())
 
 @app.route('/ei/<path:subpath>', methods=['POST'])
 def ei_unidentified_routes(subpath):

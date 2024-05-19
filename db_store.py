@@ -24,7 +24,7 @@ def create_contracts_db():
 	con = get_connection("contracts")
 	cur = con.cursor()
 	try:
-		cur.execute("CREATE TABLE Contracts(ID INTEGER PRIMARY KEY AUTOINCREMENT, CoopName TEXT, ContractName TEXT, League SMALLINT, ContractStamp BIGINT, OwnerDevice TEXT)")
+		cur.execute("CREATE TABLE Contracts(ID INTEGER PRIMARY KEY AUTOINCREMENT, CoopName TEXT, ContractName TEXT, League SMALLINT, ContractStamp BIGINT, OwnerDevice TEXT, Public BOOL)")
 		cur.execute("CREATE TABLE ContractMember(DeviceID TEXT, CoopName TEXT, DisplayName TEXT, LastVisit BIGINT, Contribution BIGINT, ContribRate BIGINT, SoulPower DOUBLE, BoostTokens INTEGER, TimeCheats INT, Banned BOOL, LeftCoop BOOL)")
 		cur.execute("CREATE TABLE ContractGift(DeviceID TEXT, RewardType TEXT, Quantity INTEGER)")
 	except:
@@ -50,9 +50,32 @@ def is_coop_full(coop_identifier, max_members):
 	cur = con.cursor()
 	res = cur.execute('SELECT COUNT(DeviceID) FROM ContractMember WHERE CoopName="' + coop_identifier + '"')
 	retval = res.fetchone()
-	print(retval)
 	con.close()
-	return False
+	if retval is None:
+		return False
+	return retval[0] >= max_members
+
+def get_public_coops(contract_identifier):
+	con = get_connection("contracts")
+	cur = con.cursor()
+	res = cur.execute('SELECT CoopName FROM Contracts WHERE Public=1 AND ContractName="' + contract_identifier + '"')
+	ret = res.fetchall()
+	con.close()
+	if ret is None:
+		return []
+	else:
+		return ret
+
+def change_coop_public_state(coop_identifier, public):
+	if not is_coop_identifier_used(coop_identifier):
+		return False
+	con = get_connection("contracts")
+	cur = con.cursor()
+	cur.execute("UPDATE Contracts SET Public=? WHERE CoopName=?", (public, coop_identifier))
+	con.commit()
+	con.close()
+	return True
+
 
 def is_coop_identifier_used(coop_identifier):
 	if not coop_identifier.isalnum():
@@ -62,7 +85,7 @@ def is_coop_identifier_used(coop_identifier):
 	res = cur.execute('SELECT League FROM Contracts WHERE CoopName="' + coop_identifier + '"')
 	retval = res.fetchone()
 	con.close()
-	return retval
+	return retval[0] if retval is not None else None
 
 def create_coop_contract(coop_identifier, contract_id, league, stamp, device_id, display_name):
 	if is_coop_identifier_used(coop_identifier):
@@ -105,6 +128,32 @@ def update_coop_contribution(coop_identifier, device_id, contribution, rate, sou
 	con.commit()
 	con.close()
 	return True
+
+def insert_coop_contribution(coop_identifier, device_id, device_name, soul_power):
+	if not is_coop_identifier_used(coop_identifier):
+		return False
+	if not device_id.isalnum():
+		return False
+	con = get_connection("contracts")
+	cur = con.cursor()
+	stamp = int(time.time())
+	values = (device_id, coop_identifier, device_name, int(time.time()), 0, 0, soul_power)
+	cur.execute("INSERT INTO ContractMember(DeviceID, CoopName, DisplayName, LastVisit, Contribution, ContribRate, SoulPower) VALUES(?, ?, ?, ?, ?, ?, ?)", values)
+	con.commit()
+	con.close()
+	return True
+
+def erase_coop_contribution(coop_identifier, device_id):
+	if not is_coop_identifier_used(coop_identifier):
+		return
+	if not device_id.isalnum():
+		return
+	con = get_connection("contracts")
+	cur = con.cursor()
+	cur.execute("DELETE FROM ContractMember WHERE DeviceID=? AND CoopName=?", (device_id, coop_identifier))
+	con.commit()
+	con.close()
+	return
 
 def get_coop_memberships(device_id):
 	if not device_id.isalnum():
