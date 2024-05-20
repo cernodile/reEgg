@@ -15,6 +15,7 @@ from flask import request
 
 import contracts
 import events
+import db_utils
 import db_store
 
 upgrade_cache = {}
@@ -140,7 +141,11 @@ def ei_query_coop():
 	QueryCoop = EIProto.QueryCoopRequest()
 	QueryCoop.ParseFromString(data)
 	QueryCoopResp = EIProto.QueryCoopResponse()
-	db_query = db_store.is_coop_identifier_used(QueryCoop.coop_identifier)
+	ContractInfo = contracts.get_contract_by_identifier(QueryCoop.contract_identifier)
+	if ContractInfo is None:
+		QueryCoopResp.exists = True
+		return base64.b64encode(QueryCoopResp.SerializeToString())
+	db_query = db_store.is_coop_identifier_used(QueryCoop.coop_identifier, QueryCoop.contract_identifier)
 	if db_query is not None:
 		QueryCoopResp.exists = True
 	else:
@@ -149,7 +154,6 @@ def ei_query_coop():
 		if QueryCoop.league != db_query:
 			QueryCoopResp.different_league = True
 		else:
-			ContractInfo = contracts.get_contract_by_identifier(QueryCoop.contract_identifier)
 			if db_store.is_coop_full(QueryCoop.coop_identifier, ContractInfo.max_coop_size):
 				QueryCoopResp.full = True
 	return base64.b64encode(QueryCoopResp.SerializeToString())
@@ -161,7 +165,7 @@ def ei_create_coop():
 	CreateCoop.ParseFromString(data)
 	CreateResponse = EIProto.CreateCoopResponse()
 	# Double check if in use
-	db_query = db_store.is_coop_identifier_used(CreateCoop.coop_identifier)
+	db_query = db_store.is_coop_identifier_used(CreateCoop.coop_identifier, CreateCoop.contract_identifier)
 	if db_query is not None:
 		CreateResponse.success = False
 		CreateResponse.message = "That co-op already exists."
@@ -170,7 +174,7 @@ def ei_create_coop():
 	contract = contracts.get_contract_by_identifier(CreateCoop.contract_identifier)
 	if contract is None:
 		CreateResponse.success = False
-		CreateResponse.message = "Couldn't find your contract."
+		CreateResponse.message = "You're no fun."
 		return base64.b64encode(CreateResponse.SerializeToString())
 	# Calculate timestamp of the contract so we can later tell actual seconds left to new joins.
 	stamp = int(time.time() - contract.length_seconds + CreateCoop.seconds_remaining)
@@ -184,40 +188,52 @@ def ei_create_coop():
 		CreateResponse.message = "Co-op created."
 	return base64.b64encode(CreateResponse.SerializeToString())
 
+def construct_contract_status(coop_name, contract_name, requester_id):
+	StatusResp = EIProto.ContractCoopStatusResponse()
+	BaseInfo = db_store.get_contract_info(coop_name, contract_name)
+	ContribInfo = db_store.get_coop_contributors(coop_name, contract_name)
+	ContractInfo = contracts.get_contract_by_identifier(contract_name)
+	if BaseInfo is None or ContribInfo is None or ContractInfo is None:
+		return None
+	i = 0
+	for x in ContribInfo:
+		i += 1
+		contributor = StatusResp.contributors.add()
+		contributor.user_id = x[0] if x[0] == requester_id else "cool-guy-" + str(i)
+		contributor.user_name = x[3]
+		contributor.contribution_amount = x[5]
+		StatusResp.total_amount += x[5]
+		contributor.contribution_rate = x[6]
+		contributor.soul_power = x[7]
+		contributor.active = not (int(time.time()) - x[4]) >= 86400
+		contributor.boost_tokens = x[8]
+	StatusResp.coop_identifier = coop_name
+	StatusResp.contract_identifier = contract_name
+	StatusResp.auto_generated = BaseInfo[7]
+	StatusResp.public = BaseInfo[6]
+	StatusResp.creator_id = "hidden-for-safety" if requester_id != BaseInfo[5] else BaseInfo[5]
+	StatusResp.seconds_remaining = (BaseInfo[4] + int(ContractInfo.length_seconds)) - int(time.time())
+	GiftInfo = db_store.get_coop_gifts(coop_name, contract_name, requester_id)
+	for g in GiftInfo:
+		Gift = StatusResp.gifts.add()
+		Gift.user_id = "hidden-for-safety"
+		Gift.user_name = g[3]
+		Gift.amount = g[4]
+	return StatusResp
+
 @app.route('/ei/coop_status', methods=['POST'])
 def ei_coop_status():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	StatusReq = EIProto.ContractCoopStatusRequest()
 	StatusReq.ParseFromString(data)
-	StatusResp = EIProto.ContractCoopStatusResponse()
-	# Get some base info (TODO: error handling)
-	BaseInfo = db_store.get_contract_info(StatusReq.coop_identifier)
-	ContribInfo = db_store.get_coop_contributors(StatusReq.coop_identifier)
-	ContractInfo = contracts.get_contract_by_identifier(BaseInfo[2])
-	TotalEggs = 0
-	for x in ContribInfo:
-		contributor = StatusResp.contributors.add()
-		contributor.user_id = x[0]
-		contributor.user_name = x[2]
-		contributor.contribution_amount = x[4]
-		TotalEggs += x[4]
-		contributor.contribution_rate = x[5]
-		contributor.soul_power = x[6]
-		contributor.active = True
-	StatusResp.coop_identifier = StatusReq.coop_identifier
-	StatusResp.total_amount = TotalEggs
-	StatusResp.auto_generated = False
-	StatusResp.public = False
-	StatusResp.creator_id = BaseInfo[5]
-	StatusResp.seconds_remaining = (BaseInfo[4] + int(ContractInfo.length_seconds)) - int(time.time())
-	return base64.b64encode(StatusResp.SerializeToString())
+	return base64.b64encode(construct_contract_status(StatusReq.coop_identifier, StatusReq.contract_identifier, StatusReq.user_id).SerializeToString())
 
 @app.route('/ei/update_coop_status', methods=['POST'])
 def ei_update_coop_status():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	UpdateReq = EIProto.ContractCoopStatusUpdateRequest()
 	UpdateReq.ParseFromString(data)
-	db_store.update_coop_contribution(UpdateReq.coop_identifier, UpdateReq.user_id, UpdateReq.amount, UpdateReq.rate, UpdateReq.soul_power, UpdateReq.boost_tokens, UpdateReq.time_cheats_detected)
+	db_store.update_coop_contribution(UpdateReq.coop_identifier, UpdateReq.contract_identifier, UpdateReq.user_id, UpdateReq.amount, UpdateReq.rate, UpdateReq.soul_power, UpdateReq.boost_tokens, UpdateReq.time_cheats_detected)
 	Resp = EIProto.ContractCoopStatusUpdateResponse()
 	Resp.finalized = True
 	return base64.b64encode(Resp.SerializeToString())
@@ -229,7 +245,13 @@ def ei_join_coop():
 	JoinCoopRequest.ParseFromString(data)
 	JoinResponse = EIProto.JoinCoopResponse()
 	JoinResponse.coop_identifier = JoinCoopRequest.coop_identifier
-	db_query = db_store.is_coop_identifier_used(JoinCoopRequest.coop_identifier)
+	ContractInfo = contracts.get_contract_by_identifier(JoinCoopRequest.contract_identifier)
+	if ContractInfo is None:
+		JoinResponse.success = False
+		JoinResponse.banned = True
+		JoinResponse.message = "You must be fun at parties."
+		return base64.b64encode(JoinResponse.SerializeToString())
+	db_query = db_store.is_coop_identifier_used(JoinCoopRequest.coop_identifier, JoinCoopRequest.contract_identifier)
 	if db_query is None:
 		JoinResponse.success = False
 		JoinResponse.message = "That co-op doesn't exist."
@@ -238,16 +260,11 @@ def ei_join_coop():
 		JoinResponse.success = False
 		JoinResponse.message = "You can't join a " + ("Elite" if db_query == 1 else "Standard") + " contract."
 		return base64.b64encode(JoinResponse.SerializeToString())
-	BaseInfo = db_store.get_contract_info(JoinCoopRequest.coop_identifier)
-	ContribInfo = db_store.get_coop_contributors(JoinCoopRequest.coop_identifier)
-	ContractInfo = contracts.get_contract_by_identifier(BaseInfo[2])
+	BaseInfo = db_store.get_contract_info(JoinCoopRequest.coop_identifier, JoinCoopRequest.contract_identifier)
+	ContribInfo = db_store.get_coop_contributors(JoinCoopRequest.coop_identifier, JoinCoopRequest.contract_identifier)
 	if len(ContribInfo) - 1 >= ContractInfo.max_coop_size:
 		JoinResponse.success = False
 		JoinResponse.message = "Co-op is full!"
-		return base64.b64encode(JoinResponse.SerializeToString())
-	if BaseInfo[2] != JoinCoopRequest.contract_identifier:
-		JoinResponse.success = False
-		JoinResponse.message = "This co-op is not made for this contract."
 		return base64.b64encode(JoinResponse.SerializeToString())
 	# TODO: bans from coops
 	db_store.insert_coop_contribution(JoinCoopRequest.coop_identifier, JoinCoopRequest.user_id, JoinCoopRequest.user_name, JoinCoopRequest.soul_power)
@@ -274,7 +291,7 @@ def ei_auto_join_coop():
 		# TODO: Ban check
 		if not db_store.is_coop_full(coop_identifier, Contract.max_coop_size):
 			Resp.success = True
-			db_store.insert_coop_contribution(coop_identifier, AutoJoinCoopRequest.user_id, AutoJoinCoopRequest.user_name, AutoJoinCoopRequest.soul_power)
+			db_store.insert_coop_contribution(coop_identifier, AutoJoinCoopRequest.contract_identifier, AutoJoinCoopRequest.user_id, AutoJoinCoopRequest.user_name, AutoJoinCoopRequest.soul_power)
 			BaseInfo = db_store.get_contract_info(coop_identifier)
 			Resp.coop_identifier = coop_identifier
 			Resp.banned = False
@@ -285,13 +302,38 @@ def ei_auto_join_coop():
 	# TODO: Auto-create co-op if none found
 	return base64.b64encode(Resp.SerializeToString())
 
+@app.route('/ei/gift_player_coop', methods=['POST'])
+def ei_gift_player():
+	# TODO: How do we validate the player even has as many boost tokens as they are about to gift?
+	data = base64.b64decode(request.form["data"].replace(" ", "+"))
+	GiftReq = EIProto.GiftPlayerCoopRequest()
+	GiftReq.ParseFromString(data)
+	if not db_store.is_user_in_coop(GiftReq.requesting_user_id, GiftReq.coop_identifier, GiftReq.contract_identifier):
+		return "", 404
+	BaseInfo = db_store.get_contract_info(GiftReq.coop_identifier, GiftReq.contract_identifier)
+	ContribInfo = db_store.get_coop_contributors(GiftReq.coop_identifier, GiftReq.contract_identifier)
+	if len(ContribInfo) <= 1:
+		return "", 404
+	if GiftReq.player_identifier.startswith("cool-guy-"):
+		tmp = GiftReq.player_identifier[9:]
+		try:
+			id = int(tmp) - 1
+			if id >= len(ContribInfo) or id < 0:
+				return "", 404
+			real_id = ContribInfo[id][0]
+			db_store.add_coop_gift(GiftReq.coop_identifier, GiftReq.contract_identifier, GiftReq.amount, GiftReq.requesting_user_name, real_id)
+			return base64.b64encode(construct_contract_status(GiftReq.coop_identifier, GiftReq.contract_identifier, GiftReq.requesting_user_id).SerializeToString())
+		except:
+			return "", 404
+	else:
+		return "", 404
+
 @app.route('/ei/leave_coop', methods=['POST'])
 def ei_leave_coop():
 	data = base64.b64decode(request.form["data"].replace(" ", "+"))
 	LeaveCoopRequest = EIProto.LeaveCoopRequest()
 	LeaveCoopRequest.ParseFromString(data)
-	db_store.erase_coop_contribution(LeaveCoopRequest.coop_identifier, LeaveCoopRequest.player_identifier)
-	# TODO: Deepdive ghidra to see what this expects?
+	db_store.erase_coop_contribution(LeaveCoopRequest.coop_identifier, LeaveCoopRequest.contract_identifier, LeaveCoopRequest.player_identifier)
 	return ""
 
 @app.route('/ei/update_coop_permissions', methods=['POST'])
@@ -300,12 +342,12 @@ def ei_update_coop_permissions():
 	PermUpdateReq = EIProto.UpdateCoopPermissionsRequest()
 	PermUpdateReq.ParseFromString(data)
 	PermUpdateResp = EIProto.UpdateCoopPermissionsResponse()
-	BaseInfo = db_store.get_contract_info(PermUpdateReq.coop_identifier)
+	BaseInfo = db_store.get_contract_info(PermUpdateReq.coop_identifier, PermUpateReq.contract_identifier)
 	if BaseInfo[5] != PermUpdateReq.requesting_user_id:
 		PermUpdateResp.success = False
 		PermUpdateResp.message = "Only the co-op creator can change the permissions."
 		return base64.b64encode(PermUpdateResp.SerializeToString())
-	db_store.change_coop_public_state(PermUpdateReq.coop_identifier, PermUpdateReq.public)
+	db_store.change_coop_public_state(PermUpdateReq.coop_identifier, PermUpdateReq.contract_identifier, PermUpdateReq.public)
 	PermUpdateResp.success = True
 	return base64.b64encode(PermUpdateResp.SerializeToString())
 
